@@ -29,7 +29,7 @@ jobs:
           java-version: '17'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Restore the shared debug keystore
         # This makes every CI build use the SAME signing key, so you can install
