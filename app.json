@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Universal Data Entry",
+    "slug": "universal-data-entry",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#4F46E5"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sahiljadhav.universaldataentry"
+    },
+    "android": {
+      "package": "com.sahiljadhav.universaldataentry",
+      "adaptiveIcon": {
+        "backgroundColor": "#4F46E5"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
