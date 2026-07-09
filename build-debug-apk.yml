@@ -1,0 +1,64 @@
+name: Build Signed Debug APK
+
+# Runs automatically on every push to main, and can also be triggered manually
+# from the Actions tab in GitHub.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-debug-apk:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore the shared debug keystore
+        # This makes every CI build use the SAME signing key, so you can install
+        # a new build over an old one without uninstalling first.
+        # Add the ANDROID_DEBUG_KEYSTORE_BASE64 secret in:
+        # Repo Settings -> Secrets and variables -> Actions -> New repository secret
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
+
+      - name: Generate native Android project (expo prebuild)
+        run: npx expo prebuild --platform android --non-interactive
+
+      - name: Grant execute permission to Gradle wrapper
+        run: chmod +x android/gradlew
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Locate APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-data-entry-debug-apk
+          path: ${{ steps.find_apk.outputs.apk_path }}
+          retention-days: 30
