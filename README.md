@@ -1,4 +1,4 @@
-# Universal Data Entry — React Native (Expo) App
+# Universal Data Entry — React Native (Expo) App sj
 
 A fully offline, mobile-first data entry app: create custom headers, submit unlimited
 records, preview them like a spreadsheet (search/edit/delete), and export to
