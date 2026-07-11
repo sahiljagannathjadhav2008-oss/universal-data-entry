@@ -1,0 +1,84 @@
+name: Build Signed APK
+
+# Runs automatically on every push to main, and can also be triggered manually
+# from the Actions tab in GitHub.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate native Android project (expo prebuild)
+        run: npx expo prebuild --platform android --non-interactive
+
+      - name: Install the shared signing keystore
+        # IMPORTANT: this must run AFTER prebuild, since prebuild regenerates the
+        # android/ folder (including its own placeholder debug.keystore) from
+        # scratch every time. This overwrites that placeholder with the fixed
+        # keystore below, so every build — debug or release — is signed with
+        # the SAME key, and android/app/build.gradle's `signingConfigs.debug`
+        # (which both the debug and release buildTypes point to) picks it up
+        # automatically via the file('debug.keystore') reference.
+        #
+        # Add the ANDROID_DEBUG_KEYSTORE_BASE64 secret in:
+        # Repo Settings -> Secrets and variables -> Actions -> New repository secret
+        run: |
+          echo "${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}" | base64 -d > android/app/debug.keystore
+          ls -la android/app/debug.keystore
+
+      - name: Grant execute permission to Gradle wrapper
+        run: chmod +x android/gradlew
+
+      - name: Build release APK (bundles JS + assets — no Metro needed at runtime)
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Locate APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "No APK found under android/app/build/outputs/apk/release" >&2
+            exit 1
+          fi
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the JS bundle is embedded in the APK
+        run: |
+          APK_PATH="${{ steps.find_apk.outputs.apk_path }}"
+          if unzip -l "$APK_PATH" | grep -q "assets/index.android.bundle"; then
+            echo "OK: assets/index.android.bundle is present inside the APK."
+          else
+            echo "FAILED: assets/index.android.bundle is missing from the APK." >&2
+            unzip -l "$APK_PATH"
+            exit 1
+          fi
+
+      - name: Upload APK as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-data-entry-apk
+          path: ${{ steps.find_apk.outputs.apk_path }}
+          retention-days: 30
